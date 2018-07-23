@@ -76,22 +76,23 @@ static std::tuple<Tensor,Tensor> _gesv_single_helper(const Tensor& self, const T
 #ifndef USE_LAPACK
   AT_ERROR("gesv: LAPACK library not found in compilation");
 #endif
-  auto A_ = A.clone();
-  auto b_ = self.clone();
-  int info;
+  int64_t bx = self.size(0);
+  int64_t by = (self.dim() == 1) ? 1 : self.size(1);
+  int info = 0;
+
+  auto A_ = A.t().clone();
+  auto b_ = self.view({bx, by}).t().clone();
 
   AT_DISPATCH_FLOATING_TYPES(self.type(), "gesv", [&]{
     auto A_ptr = A_.data<scalar_t>();
     auto b_ptr = b_.data<scalar_t>();
-    auto n = A_.size(-1);
-    auto nrhs = b_.size(-1);
-    auto ipiv = at::empty({n}, b_.type().toScalarType(kInt));
+    auto ipiv = at::empty({bx}, b_.type().toScalarType(kInt));
 
-    lapackGesv<scalar_t>(n, nrhs, A_ptr, n, ipiv.data<int>(), b_ptr, n, &info);
+    lapackGesv<scalar_t>(bx, by, A_ptr, bx, ipiv.data<int>(), b_ptr, bx, &info);
   });
 
   checkErrors({info});
-  return std::tuple<Tensor, Tensor>(b_, A_);
+  return std::tuple<Tensor, Tensor>(b_.t(), A_.t());
 }
 
 std::tuple<Tensor,Tensor> _gesv_helper_cpu(const Tensor& self, const Tensor& A) {
